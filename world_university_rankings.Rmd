@@ -1,0 +1,149 @@
+---
+title: "Exploratory Analysis of World University Rankings Dataset"
+author: "Greg Mundy"
+date: "March 16, 2016"
+output: html_document
+---
+
+## Overview
+This document is an exploratory analysis of the [World University Rankings](https://www.kaggle.com/mylesoneill/world-university-rankings) 
+dataset hosted on [Kaggle](http://www.kaggle.com). The dataset contains
+rankings from three different sources, namely: [The Times Higher Education World University Rankings](https://www.timeshighereducation.com/world-university-rankings), the [Academic Ranking of World Universities](http://www.shanghairanking.com/) (referred to as the Shanghai Ranking), and the [Center for World University Rankings](http://cwur.org/).
+
+In addition to the rankings from the three sources, the dataset also contains the
+following supplementary data:
+- [Educational attainment](http://datatopics.worldbank.org/Education/wDataQuery/QProjections.aspx) around the world extracted from the World Bank.
+-[Public and private direct expenditure on education across nations](http://nces.ed.gov/programs/digest/d14/tables/dt14_605.20.asp) from the National Center for Education Statistics. 
+- A lookup table for university against country extracted from the Times Higher Education World Rankings data.
+
+## Load and Inspect Data
+The initial step of the analysis is to load the data into dataframes for examination. Note that the **dplyr** and **tidyr** libraries are loaded 
+in order to aid in the exploration.
+```{r message=FALSE}
+# Load dplyr library
+library(dplyr)
+
+# Load the tidyr library
+library(tidyr)
+```
+
+```{r}
+# Establish working directory
+setwd("~/Development/datasets/world-university-ranking/")
+
+# Load Times data
+TIMES <- tbl_df(read.csv("timesData.csv"))
+
+# Load Shanghai data
+SHANGHAI <- tbl_df(read.csv("shanghaiData.csv"))
+
+# Load CWUR data
+CWUR <- tbl_df(read.csv("cwurData.csv"))
+
+# Load education attainment supplementary data
+ATTAINMENT <- tbl_df(read.csv("educational_attainment_supplementary_data.csv"))
+
+# Load education expenditure supplementary data
+EXPENDITURE <- tbl_df(read.csv("education_expenditure_supplementary_data.csv"))
+
+# Load University to Country lookup table
+LUT <- tbl_df(read.csv("school_and_country_table.csv"))
+```
+
+Brief summaries of the three reports are generated in order to determine how the
+data is organize. The fact that each organization utilized different methods for
+ranking the universities is evident. It is also noted that some datasets contain
+more data than others. The Shanghai data contains `r nrow(SHANGHAI)` observations
+and begins in 2005, the Times data contains `r nrow(TIMES)` observations and begins in 2011, while the CWUR data contains `r nrow(CWUR)` observations and begins in 2012.
+```{r}
+# Summarize Times Data
+glimpse(TIMES)
+
+# Summarize Shanghai Data
+glimpse(SHANGHAI)
+
+# Summarize CWUR Data
+glimpse(CWUR)
+```
+
+## How Different are the Rankings?
+One question of interest that should be answered in the exploratory analysis is
+how different the outcomes of the three rankings truly are given the different 
+methodologies. To answer this question, the first step will be to perform some preliminary tidying of the data.
+
+```{r}
+# Extract the only common elements from the three datasets, namely ranking and
+# institution.
+times_ranking <- select(TIMES, world_rank, university_name, year)
+shanghai_ranking <- select(SHANGHAI, world_rank, university_name, year)
+cwur_ranking <- select(CWUR, world_rank, institution, year)
+
+# Convert years to factor for all
+times_ranking$year <- factor(times_ranking$year)
+shanghai_ranking$year <- factor(shanghai_ranking$year)
+cwur_ranking$year <- factor(cwur_ranking$year)
+
+# Convert world_rank of CWUR to factor for consistency
+cwur_ranking$world_rank <- factor(cwur_ranking$world_rank)
+
+# Find levels for each reports to determine years
+levels(times_ranking$year)
+levels(shanghai_ranking$year)
+levels(cwur_ranking$year)
+```
+
+By looking at the year levels for the three reports, it is observed that the data
+intersects at 2012 - 2015. To ensure that the comparisons are meaningful, the observations for each report are narrowed down to years in that range.
+
+```{r narrow_years}
+times_ranking <- filter(times_ranking, year == "2012" | year == "2013" | year == "2014" | year == "2015")
+
+shanghai_ranking <- filter(shanghai_ranking, year == "2012" | year == "2013" | year == "2014" | year == "2015")
+cwur_ranking <- filter(cwur_ranking, year == "2012" | year == "2013" | year == "2014" | year == "2015")
+```
+
+A look at the Top 10 universities in 2012 reveals some interesting facts about the data:
+
+- Although the methodologies and rankings are different, most of the top universities showed up in all three lists, the exceptions being University of
+Chicago (2 occurences), Yale (1 occurence), and Imperial College London (1 occurence).
+
+- All universities in the list are English speaking and are located either in the
+United States or Europe.
+```{r look_at_top_n}
+# Top 10 Universities in 2012 accordinf to Times
+head(times_ranking, 10)
+
+# Top 10 Universities in 2012 according to Shanghai
+head(shanghai_ranking, 10)
+
+# Top 10 Universites in 2012 according to CWUR
+head(cwur_ranking, 10)
+```
+
+To further analyze the data, the top 5 institutions from 2012 to 2015 are plotted for each report.
+```{r}
+# Load the ggplot2 library
+library(ggplot2)
+
+# Extract the top 5 universities from each report
+times_top_5 <- filter(times_ranking, world_rank %in% c("1":"5"))
+shanghai_top_5 <- filter(shanghai_ranking, world_rank %in% c("1":"5"))
+cwur_top_5 <- filter(cwur_ranking, world_rank %in% c("1":"5"))
+
+# Graph the results
+ggplot(data = times_top_5, aes(x=year, y=world_rank, fill = university_name)) +
+  geom_bar(colour="black", stat="identity", position = position_dodge(), size = .3) + theme_bw() + ggtitle("Top 5 Universities (Times) 2012 - 2015")
+
+ggplot(data = shanghai_top_5, aes(x=year, y=world_rank, fill = university_name)) +
+  geom_bar(colour="black", stat="identity", position = position_dodge(), size = .3) + theme_bw() + ggtitle("Top 5 Universities (Shanghai) 2012 - 2015")
+
+ggplot(data = cwur_top_5, aes(x=year, y=world_rank, fill = institution)) +
+  geom_bar(colour="black", stat="identity", position = position_dodge(), size = .3) + theme_bw() + ggtitle("Top 5 Universities (CWUR) 2012 - 2015")
+  
+```
+
+An interesting observation is made by looking at each chart in that an institution that is ranked #1 maintains its ranking over time even though there appears to be variability in the rankings for the other universities.
+
+```{r}
+summary(cwur_top_5)
+````
